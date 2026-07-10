@@ -1,0 +1,16 @@
+# Large binary and data files
+*.tif
+*.mat
+results/
+
+# MATLAB
+*.m~
+*.asv
+
+# Obsidian
+.obsidian/
+vault/.obsidian/
+
+# OS
+.DS_Store
+Thumbs.db
