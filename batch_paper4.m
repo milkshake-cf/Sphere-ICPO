@@ -5,7 +5,7 @@ nRuns = 20; MaxIt = 200;
 maps = {
     struct('name','Map1_Christmas','func',@CreateModel),
     struct('name','Map2_Clustered', 'func',@CreateModel_map2_new),
-    struct('name','Map3_Coastal',  'func',@CreateModel_coastal),
+    struct('name','Map3_3Threat',   'func',@CreateModel_map3_new),
     struct('name','Map4_7Threat',  'func',@CreateModel_map4),
 };
 
