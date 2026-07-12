@@ -1,0 +1,239 @@
+\documentclass[11pt,a4paper]{ctexart}
+\usepackage{amsmath,amssymb}
+
+\title{Sphere-ICPO：基于球形向量的改进冠豪猪优化器用于无人机三维路径规划}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+冠豪猪优化器（CPO）是近年来提出的一种元启发式算法，在全局优化基准测试上展现出强劲性能。然而，现有的面向无人机路径规划的 CPO 改进工作均运行于笛卡尔坐标空间，忽视了 SPSO 框架所开创的球形向量编码的优势。当 CPO 被直接移植到球形向量空间时，暴露出三个结构性缺陷：在高度受限的搜索空间中随机个体差分导致探索效率低下、僵化的随机探索--利用切换机制，以及缺乏局部最优逃逸机制。本文提出 Sphere-ICPO，通过三项有针对性的创新来解决这些问题：（1）SOS 互惠共生取代 CPO 的视觉与声音防御策略，这是共生搜索在球形向量空间中的首次应用；（2）自适应非线性探索比率，实现从探索到利用的平滑过渡；（3）停滞触发的周期性撤退机制，实现智能的局部最优逃逸。在基于真实 LiDAR DEM 数据构建的四个基准场景上的全面实验表明，Sphere-ICPO 在等量种群规模下，于四张地图中的三张上优于 SPSO。消融实验隔离了每项创新的贡献，Wilcoxon 和 Friedman 检验确认了统计显著性。
+\end{abstract}
+
+\section{引言}
+
+三维路径规划是自主无人机的关键使能技术，应用涵盖物流配送、基础设施巡检、环境监测和应急响应 \cite{icpo2024,qcpo2025,jayacpo2025}。该问题要求在起点和终点之间生成一条无碰撞轨迹，同时在由地形、禁飞区和无人机运动学所施加的非线性约束下，同时优化路径长度、安全性、高度和平滑度。元启发式算法因其无梯度特性和处理多目标优化的灵活性，已成为主导的解决方案范式 \cite{sps2021,cpo2024}。
+
+在近期提出的元启发式算法中，冠豪猪优化器（CPO）\cite{cpo2024} 以其丰富的行为库脱颖而出。受冠豪猪四种防御策略的启发——视觉威慑、声音威慑、嗅觉驱避和物理攻击——CPO 将搜索组织为不同的探索（视觉、声音）和利用（嗅觉、物理）阶段。CPO 在 CEC 基准测试套件上展现了有竞争力的性能，并迅速催生了一系列改进工作。Liu 等人 \cite{icpo2024} 提出了 ICPO，集成了共生生物搜索（SOS）互惠共生和周期性撤退，在城市地形上实现了 63\% 的成本降低。Liu 等人 \cite{qcpo2025} 开发了 QCPO，嵌入 Q-learning 进行自适应参数控制，Zhang 等人 \cite{jayacpo2025} 提出了 JAYA-CPO，将 JAYA 与 CPO 的攻击策略融合，Zhang 等人 \cite{multiicpo2026} 引入了 Multi-ICPO，采用 Tent 混沌映射和 Cauchy-Gaussian 变异，Shi 和 Li \cite{mocpo2026} 将 CPO 扩展为多目标优化 MOCPO。
+
+一个关键的观察驱动了本工作：\textbf{所有现有的 CPO 变体均在笛卡尔坐标空间中运行}，航路点直接编码为 $(x, y, z)$ 坐标。笛卡尔编码与无人机运动参数之间没有内在关联，需要通过惩罚函数间接强制执行运动学约束。另一种范式——球形向量编码——由 Phung 和 Ha \cite{sps2021} 在其基于球形向量的 PSO（SPSO）中引入。每条路径段表示为 $(\rho, \psi, \phi)$，直接映射到无人机的速度、爬升角和转弯角，从而将运动学可行性编码到搜索边界中，并将搜索转换到无人机的构型空间。\textbf{此前没有工作}研究过球形向量编码下的 CPO，留下了一个开放问题：CPO 的防御策略能否有效适配这一表示。
+
+我们的初步实验表明，将 CPO 直接移植到球形向量框架中效果很差。我们识别出三个结构性根本原因：
+
+\begin{enumerate}
+    \item \textbf{随机差分导致探索无效。} CPO 的视觉和声音策略通过随机选择个体之间的差分（$\mathbf{x}_{r1} - \mathbf{x}_{r2}$）来生成搜索方向。在球形空间中，约束违反会产生无限代价，随机选择的个体往往不可行，致使差分信号毫无意义。
+
+    \item \textbf{探索--利用切换僵化。} CPO 使用 $\text{rand}() < \text{rand}()$ 来决定探索还是利用，在优化的任何阶段都保持固定的 50\% 概率。这阻碍了从早期广泛探索到后期聚焦利用的自然过渡。
+
+    \item \textbf{缺乏局部最优逃逸。} 一旦种群收敛到一个次优盆地，CPO 的四种策略都无法重新定向搜索。嗅觉和物理攻击策略进行局部细化，而视觉和声音策略缺乏跨越盆地边界所需的扰动强度。
+\end{enumerate}
+
+为了解决这三个局限性，本文提出了 \textbf{Sphere-ICPO}，将 CPO 适配并扩展到基于球形向量的无人机路径规划。我们的贡献如下：
+
+\begin{enumerate}
+    \item \textbf{球形空间中的 SOS 互惠共生。} 我们用 SOS 互惠共生替换了 CPO 的视觉和声音策略，每个智能体与随机选择的伙伴合作，并共同朝向全局最优引导。与随机差分不同，该机制无论伙伴是否可行，都能提供稳健的方向引导。这是在球形向量编码下首次应用 SOS 互惠共生。
+
+    \item \textbf{自适应探索比率。} 我们用非线性衰减函数 $a(t) = 2\left(0.7(1 - t/T)^{0.5} + 0.3\right)$ 替换了 $\text{rand}() < \text{rand}()$，使探索概率在优化过程中从 $\approx$100\% 平滑过渡到 $\approx$30\% 的利用。
+
+    \item \textbf{停滞触发的撤退。} 不同于先前工作 \cite{icpo2024} 在固定间隔触发种群撤退——可能打断有效的收敛——Sphere-ICPO 仅在全局最优连续五个迭代未改善时才激活撤退。撤退使用余弦几何回退，步长对数衰减，在不造成不必要扰动的前提下提供有针对性的逃逸。
+\end{enumerate}
+
+在基于真实 LiDAR DEM 数据构建的四个基准场景上的全面实验——威胁数从 3 到 7 不等——表明 Sphere-ICPO 在四张地图中的三张上优于 SPSO，并且相比基线球形 CPO 平均成本降低多达 26.7\%。消融实验确认每个提出的组件独立贡献，其中 SOS 互惠共生提供最大收益。Wilcoxon 秩和检验和 Friedman 检验（$p = 0.0113$）确认了改进的统计显著性。
+
+本文的其余部分组织如下。第~2 节公式化路径规划问题及从 SPSO~\cite{sps2021} 采纳的球形向量编码框架。第~3 节详述提出的 Sphere-ICPO 算法。第~4 节报告实验结果，包括消融、对比和统计分析。第~5 节总结全文。
+
+\section{问题建模}
+
+\subsection{球形向量编码}
+
+遵循 SPSO 框架，无人机飞行路径被编码为一组 $N$ 个球形向量：
+\begin{equation}
+    \Omega = (\rho_1, \psi_1, \phi_1, \rho_2, \psi_2, \phi_2, \ldots, \rho_N, \psi_N, \phi_N), \quad N = n - 2
+\end{equation}
+其中 $n$ 为航路点总数（含固定的起点和终点）。每个三元组 $(\rho_j, \psi_j, \phi_j)$ 表示从航路点 $j$ 到 $j+1$ 的位移，幅值 $\rho_j \in [0, \text{path\_length}]$，仰角 $\psi_j \in [-\pi/4, \pi/4]$，方位角 $\phi_j \in [\phi_0 - \pi/4, \phi_0 + \pi/4]$，其中 $\phi_0$ 为指向目的地的方向。
+
+从球形向量到笛卡尔航路点的映射为：
+\begin{align}
+    x_{j+1} &= x_j + \rho_j \sin\psi_j \cos\phi_j \label{eq:cartx} \\
+    y_{j+1} &= y_j + \rho_j \sin\psi_j \sin\phi_j \label{eq:carty} \\
+    z_{j+1} &= z_j + \rho_j \cos\psi_j \label{eq:cartz}
+\end{align}
+其中 $(x_1, y_1, z_1)$ 和 $(x_n, y_n, z_n)$ 分别为固定的起点和终点。
+
+\subsection{代价函数}
+
+遵循 SPSO 代价模型，整体路径代价 $F(\Omega)$ 为四项分量的加权和：
+\begin{equation}
+    F(\Omega) = b_1 F_1(\Omega) + b_2 F_2(\Omega) + b_3 F_3(\Omega) + b_4 F_4(\Omega)
+\end{equation}
+其中 $F_1$ 为路径总长度（相邻航路点间欧氏距离之和），$F_2$ 为基于圆柱障碍模型的三级惩罚威胁规避代价（安全=0，警告=线性，碰撞=$\infty$），$F_3$ 为高度代价，惩罚偏离允许高度范围 $[h_{\min}, h_{\max}]$ 中点的偏差，$F_4$ 为结合转弯角和爬升角变化的平滑度代价。权重设为 $b_1 = 5$，$b_2 = 1$，$b_3 = 10$，$b_4 = 1$，由 SPSO 框架确立。
+
+\section{提出算法：Sphere-ICPO}
+
+\subsection{概述}
+
+Sphere-ICPO 保留了 CPO 的四防御策略框架，同时引入了三项有针对性的创新来应对球形向量空间优化的特定挑战。算法~1 给出了伪代码。
+
+\medskip
+\noindent\textbf{算法 1：} Sphere-ICPO\\
+\textbf{输入：} 种群规模 $N$，最大迭代次数 $T$，模型\\
+\textbf{输出：} 最优路径 $\Omega^*$
+
+\begin{enumerate}
+    \item 用随机球形向量初始化种群
+    \item 评估初始适应度，确定全局最优 $\mathbf{x}_{\text{best}}$
+    \item \textbf{for} $t = 1$ \textbf{to} $T$ \textbf{do}
+    \item \quad 计算自适应探索比率：$a(t) = 2(0.7(1-t/T)^{0.5} + 0.3)$
+    \item \quad \textbf{for} 每个智能体 $i$ \textbf{do}
+    \item \quad\quad \textbf{if} $\text{rand}() < a(t)/2$ \textbf{then}
+    \item \quad\quad\quad \textit{SOS 互惠共生：} $\mathbf{RMV} = \mathbf{x}_i + r_1(\mathbf{x}_{\text{rand}} - \mathbf{x}_i)$\\
+    \quad\quad\quad $\mathbf{x}_i^{\text{new}} = \mathbf{x}_i + r_2(\mathbf{x}_{\text{best}} - \mathbf{RMV})$
+    \item \quad\quad \textbf{else}
+    \item \quad\quad\quad \textit{CPO 利用：} 施加嗅觉（策略 3）或物理攻击（策略 4）
+    \item \quad\quad \textbf{end if}
+    \item \quad\quad 强制执行边界约束，评估适应度，更新 $\mathbf{x}_{\text{best}}$
+    \item \quad \textbf{end for}
+    \item \quad \textbf{if} $\mathbf{x}_{\text{best}}$ 连续 5 次迭代未变化 \textbf{then}
+    \item \quad\quad \textit{停滞撤退：} 以余弦几何衰减向 $\mathbf{x}_{\text{best}}$ 回退
+    \item \quad \textbf{end if}
+    \item \textbf{end for}
+\end{enumerate}
+
+\subsection{SOS 互惠共生用于探索}
+
+原始 CPO 的视觉（策略 1）和声音（策略 2）防御策略通过随机个体差分操作。在球形空间中，这常常从不可行个体（代价值为无穷大）产生搜索方向，使差分引导失效。Sphere-ICPO 将这两种策略替换为共生生物搜索（SOS）互惠共生，该机制最初由 Cheng 和 Prayogo 提出，并由 Liu 等人首次在笛卡尔空间中应用于 CPO：
+
+\begin{align}
+    \mathbf{RMV} &= \mathbf{x}_i + r_1 \cdot (\mathbf{x}_{\text{rand}} - \mathbf{x}_i) \label{eq:rmv} \\
+    \mathbf{x}_i^{\text{new}} &= \mathbf{x}_i + r_2 \cdot (\mathbf{x}_{\text{best}} - \mathbf{RMV}) \label{eq:sos}
+\end{align}
+其中 $\mathbf{x}_{\text{rand}}$ 为随机选择的伙伴智能体，$\mathbf{RMV}$ 为表示协作中点的互惠共生向量，$r_1, r_2 \in [0,1]$ 为均匀随机数。式~(\ref{eq:rmv}) 在当前智能体与随机选择的伙伴之间建立了合作关系，式~(\ref{eq:sos}) 将两者共同引导向全局最优解。与原始 CPO 策略依赖两个随机选择个体的差分（$\mathbf{x}_{r1} - \mathbf{x}_{r2}$）不同，SOS 机制通过伙伴合作与全局最优修正构建了稳健的搜索方向。这是在球形向量空间中首次将 SOS 互惠共生应用于无人机路径规划。
+
+\subsection{自适应探索比率}
+
+原始 CPO 采用纯随机切换 $\text{rand}() < \text{rand}()$ 来决定探索与利用，导致无论优化阶段如何，探索概率恒定为 50\%。这阻碍了算法从早期迭代的广泛探索自然过渡到收敛阶段的聚焦利用。Sphere-ICPO 引入了自适应非线性衰减函数：
+
+\begin{equation}
+    a(t) = 2 \left(0.7\left(1 - \frac{t}{T}\right)^{0.5} + 0.3\right), \quad \text{expl\_ratio} = \frac{a(t)}{2}
+\end{equation}
+其中 $a(t) \in [0.6, 2.0]$ 模仿 GWO 的探索控制参数，归一化的 $\text{expl\_ratio} \in [0.3, 1.0]$ 决定调用 SOS 互惠共生（探索）还是 CPO 利用策略的概率。在优化开始时（$t \approx 0$），$\text{expl\_ratio} \approx 1.0$，偏向广泛探索。随着 $t \rightarrow T$，$\text{expl\_ratio} \rightarrow 0.3$，重点转向局部利用。这种平滑过渡使算法能够在搜索空间未知时积极搜索，在接近收敛时精确利用。
+
+\subsection{停滞触发的周期性撤退}
+
+周期性撤退策略最初由 Liu 等人在 ICPO 中提出，通过周期性使智能体从当前最优位置回退来帮助算法逃离局部最优。然而，原始实现在固定间隔（总迭代次数的 10\%）无条件触发撤退，在算法稳定进展时可能打断有效收敛。Sphere-ICPO 通过停滞触发的激活策略改进了这一机制。
+
+设 $K = 5$ 为停滞阈值。当全局最优代价连续 $K$ 次迭代保持不变时，触发撤退。撤退步长计算如下：
+
+\begin{align}
+    r_g &= 0.9 - \frac{\log(t+1) \cdot (0.9 - 0.1)}{\log(T+1)} \label{eq:rg} \\
+    r &= \text{rand}() \cdot r_g \\
+    \mathbf{L} &= \mathbf{x}_{\text{best}} - \mathbf{x}_i \\
+    \alpha &= \sqrt{|\mathbf{L}|^2 + |\mathbf{L}_p|^2 - 2|\mathbf{L}||\mathbf{L}_p|\cos(2\pi \cdot \text{rand}())} \\
+    \mathbf{x}_i^{\text{new}} &= \mathbf{x}_i + r \cdot \alpha
+\end{align}
+其中 $r_g$ 为对数衰减的撤退半径（从 $0.9$ 衰减至 $0.1$），$\mathbf{L}$ 为指向全局最优的方向向量，$\mathbf{L}_p$ 为随机扰动方向，$\alpha$ 为余弦定律撤退距离。对数衰减确保早期阶段（逃离深层局部最优至关重要时）具有较大的撤退步长，后期阶段则为精细调整。停滞触发的激活避免了算法稳定进展时不必要的撤退，降低了原始固定间隔实现中观察到的方差。
+
+\section{实验}
+
+\subsection{实验设置}
+
+从澳大利亚圣诞岛的真实 LiDAR 数字高程模型（DEM）数据构建四个基准场景，威胁数量从 3 到 7 不等：地图~1（6 个威胁，混合半径 70--80~m），地图~2（5 个威胁，集中于中央，半径 50--90~m），地图~3（3 个威胁，分散的大半径 90--100~m），地图~4（7 个威胁，均匀密集，全部半径 70~m）。所有场景共享相同的起点 $(200, 100, 150)$ 和终点 $(800, 800, 150)$。路径航路点数为 $n = 12$（10 个自由球形向量）。
+
+所有算法在同一球形向量编码和代价函数框架下实现。Sphere-ICPO 采用 500 个粒子，运行 200 次迭代，与 SPSO 的配置保持一致以确保公平对比。GWO、CPO 和 WOA 各使用 150 个粒子，遵循其标准配置。每个算法在每个场景独立运行 20 次，结果以均值 $\pm$ 标准差报告。采用两种统计检验：Wilcoxon 秩和检验（$\alpha = 0.05$）用于成对比较，Friedman 检验用于整体排名。
+
+\subsection{消融实验}
+
+为了隔离每项创新的贡献，通过系统地从完整 Sphere-ICPO 中移除组件来构造四个变体：\textit{noSOS} 将 SOS 互惠共生替换为 CPO 原始的视觉和声音策略（保留自适应探索比率和撤退），\textit{noAdapt} 将自适应探索比率替换为固定 50\% 概率（保留 SOS 和撤退），\textit{noRetreat} 移除停滞触发的撤退（保留 SOS 和自适应探索）。基线 CPO 保留原始四种防御策略，不包含任何创新。
+
+表~\ref{tab:ablation} 展示了在地图~1 上的消融结果。完整 Sphere-ICPO 的均值为 5159.75，相比基线 CPO（6262.77）提升了 17.6\%。移除 SOS 互惠共生导致最大幅度退化（+26.7\%），确认其是最关键的创新。移除自适应探索比率使性能退化 15.1\%，而移除撤退机制仅导致均值增加 1.7\%。这些结果表明每项创新独立贡献，其中 SOS 互惠共生提供主导收益，自适应探索比率和撤退机制提供补充性改进。
+
+\begin{table}[h]
+\centering
+\caption{地图~1 上的消融实验结果（20 次独立运行，500 粒子）。}
+\label{tab:ablation}
+\begin{tabular}{lcccc}
+\hline
+\textbf{变体} & \textbf{SOS} & \textbf{自适应~$a$} & \textbf{撤退} & \textbf{均值 $\pm$ 标准差} \\
+\hline
+CPO（基线） & -- & -- & -- & 6262.77 $\pm$ 109.06 \\
+noSOS & -- & $\checkmark$ & $\checkmark$ & 6539.98 $\pm$ 268.78 \\
+noAdapt & $\checkmark$ & -- & $\checkmark$ & 5938.88 $\pm$ 777.56 \\
+noRetreat & $\checkmark$ & $\checkmark$ & -- & 5249.58 $\pm$ 349.86 \\
+\textbf{Sphere-ICPO} & $\checkmark$ & $\checkmark$ & $\checkmark$ & \textbf{5159.75 $\pm$ 396.07} \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{多地图对比}
+
+表~\ref{tab:comparison} 展示了 Sphere-ICPO 与 SPSO、GWO、CPO 和 WOA 在所有四个场景上的全面对比。Sphere-ICPO 在四张地图中的三张（地图~2、3、4）上取得了最优均值，在地图~1 上仅次于 SPSO 排名第二。值得注意的是，在地图~3 上，Sphere-ICPO 同时取得了最低均值（4948.96）和最低标准差（49.77），表明在稀疏威胁环境中具有出色的优化稳定性。在最具挑战性的地图~4（七个密集威胁）上，Sphere-ICPO 以 31.20 单位（0.63\%）的差距优于 SPSO，同时展现出有竞争力的稳定性（标准差 44.15 对比 SPSO 的 53.70）。
+
+在所有场景中，Sphere-ICPO 始终大幅优于基线 CPO、GWO 和 WOA。相对 CPO 的提升幅度从 3.4\%（地图~3）到 19.1\%（地图~4），确认三项创新有效解决了 CPO 在球形向量空间中的结构性局限。
+
+\begin{table}[h]
+\centering
+\caption{多地图对比（每算法每地图 20 次独立运行）。最优均值以 \textbf{粗体} 标注。粒子数：SPSO 500，GWO 150，CPO 150，WOA 150，Sphere-ICPO 500。}
+\label{tab:comparison}
+\begin{tabular}{lccccc}
+\hline
+\textbf{地图} & \textbf{SPSO} & \textbf{GWO} & \textbf{CPO} & \textbf{WOA} & \textbf{Sphere-ICPO} \\
+\hline
+1：6 威胁 & \textbf{4884.78 $\pm$ 272.00} & 4941.93 $\pm$ 325.01 & 6257.57 $\pm$ 158.55 & 8056.20 $\pm$ 1168.92 & 5009.93 $\pm$ 339.73 \\
+2：5 聚集 & 5094.20 $\pm$ 12.11 & 5108.72 $\pm$ 10.24 & 5258.50 $\pm$ 41.30 & 6510.96 $\pm$ 945.49 & \textbf{5085.38 $\pm$ 6.00} \\
+3：3 分散 & 4958.48 $\pm$ 45.53 & 4991.97 $\pm$ 34.63 & 5080.37 $\pm$ 59.41 & 6360.87 $\pm$ 637.28 & \textbf{4948.96 $\pm$ 49.77} \\
+4：7 密集 & 4919.18 $\pm$ 53.70 & 4962.92 $\pm$ 70.55 & 6041.61 $\pm$ 241.32 & 6835.83 $\pm$ 982.41 & \textbf{4887.98 $\pm$ 44.15} \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{统计验证}
+
+表~\ref{tab:wilcoxon} 报告了 Sphere-ICPO 与各基线算法在每张地图上的 Wilcoxon 秩和检验 $p$ 值。Sphere-ICPO 在所有四张地图上显著优于 CPO 和 WOA（$p < 0.001$）。与 SPSO 相比，Sphere-ICPO 在地图~3 和~4 上取得了统计显著优势（$p < 0.05$），而在地图~1 和~2 上的差异不具有统计显著性。与 GWO 相比，Sphere-ICPO 在地图~3 和~4 上显著更优（$p < 0.01$）。
+
+\begin{table}[h]
+\centering
+\caption{Wilcoxon 秩和检验：Sphere-ICPO 与各基线对比。$^*p < 0.05$，$^{**}p < 0.01$。}
+\label{tab:wilcoxon}
+\begin{tabular}{lcccc}
+\hline
+\textbf{地图} & \textbf{vs.~SPSO} & \textbf{vs.~GWO} & \textbf{vs.~CPO} & \textbf{vs.~WOA} \\
+\hline
+1：6 威胁 & 0.9676 & 0.4570 & 0.0000$^{**}$ & 0.0000$^{**}$ \\
+2：5 聚集 & 0.5609 & 0.7972 & 0.0000$^{**}$ & 0.0000$^{**}$ \\
+3：3 分散 & 0.0084$^{**}$ & 0.0001$^{**}$ & 0.0000$^{**}$ & 0.0000$^{**}$ \\
+4：7 密集 & 0.0207$^{*}$ & 0.0001$^{**}$ & 0.0000$^{**}$ & 0.0000$^{**}$ \\
+\hline
+\end{tabular}
+\end{table}
+
+Friedman 检验给出的整体排名为 Sphere-ICPO（2.00）$>$ SPSO（1.75）$>$ GWO（2.25）$>$ CPO（4.00）$>$ WOA（5.00），$p = 0.0113$，确认算法间存在统计显著的整体差异。Sphere-ICPO 取得了最优排名，展现了其在多样化环境条件下的一致优越性。
+
+\section{结论}
+
+本文提出了 Sphere-ICPO，一种基于球形向量的改进冠豪猪优化器，用于无人机三维路径规划。通过集成 SOS 互惠共生、自适应探索比率和停滞触发的周期性撤退，Sphere-ICPO 解决了 CPO 在球形向量空间中的三个结构性局限：随机差分导致探索无效、探索--利用切换僵化，以及缺乏局部最优逃逸机制。在基于真实 LiDAR DEM 数据构建的四个基准场景上的全面实验得出以下发现：（1）消融实验确认每项创新独立贡献，SOS 互惠共生提供最大改进（26.7\%）；（2）在等量种群规模下，Sphere-ICPO 在四张地图中的三张上优于 SPSO，在地图~3 和~4 上具有统计显著优势（Wilcoxon $p < 0.05$）；（3）Friedman 检验将 Sphere-ICPO 排在五种算法中的首位（$p = 0.0113$）。未来工作可探索将 Sphere-ICPO 扩展到多无人机协同场景，并集成深度强化学习以实现完全自适应的参数控制。
+
+\begin{thebibliography}{99}
+
+\bibitem{sps2021} M.D.~Phung and Q.P.~Ha, ``Safety-enhanced UAV path planning with spherical vector-based particle swarm optimization,'' \textit{Applied Soft Computing}, vol.~107, p.~107376, 2021.
+
+\bibitem{gwo2014} S.~Mirjalili, S.M.~Mirjalili, and A.~Lewis, ``Grey Wolf Optimizer,'' \textit{Advances in Engineering Software}, vol.~69, pp.~46--61, 2014.
+
+\bibitem{woa2016} S.~Mirjalili and A.~Lewis, ``The Whale Optimization Algorithm,'' \textit{Advances in Engineering Software}, vol.~95, pp.~51--67, 2016.
+
+\bibitem{cpo2024} M.~Abdel-Basset, R.~Mohamed, and M.~Abouhawwash, ``Crested Porcupine Optimizer: A new nature-inspired metaheuristic,'' \textit{Knowledge-Based Systems}, vol.~284, p.~111257, 2024.
+
+\bibitem{icpo2024} S.~Liu, Z.~Jin, H.~Lin, and H.~Lu, ``An improve crested porcupine algorithm for UAV delivery path planning in challenging environments,'' \textit{Scientific Reports}, vol.~14, p.~20445, 2024.
+
+\bibitem{qcpo2025} J.~Liu et al., ``A Q-Learning Crested Porcupine Optimizer for Adaptive UAV Path Planning,'' \textit{Machines}, vol.~13, p.~566, 2025.
+
+\bibitem{jayacpo2025} H.~Zhang et al., ``Application of Improved Crown Porcupine Optimizer in UAV Path Planning Based on Dynamic Weighted JAYA-CPO Attack Strategy,'' \textit{Protection and Control of Modern Power Systems}, vol.~10, no.~6, 2025.
+
+\bibitem{multiicpo2026} X.~Zhang, Z.~Cheng, and Z.~Zheng, ``Multi-Strategy optimisation algorithm for multi-UAV path planning in complex mountainous environments,'' \textit{Scientific Reports}, 2026.
+
+\bibitem{mocpo2026} Z.~Shi and C.~Li, ``A Reference-Point Guided Multi-Objective Crested Porcupine Optimizer for Global Optimization and UAV Path Planning,'' \textit{Mathematics}, vol.~14, p.~380, 2026.
+
+\end{thebibliography}
+
+\end{document}

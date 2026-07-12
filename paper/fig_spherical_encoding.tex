@@ -1,0 +1,74 @@
+% fig_spherical_encoding.tex — Fig. 1: Spherical vector encoding concept
+% Compile: pdflatex fig_spherical_encoding.tex
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,decorations.pathreplacing,shapes.geometric,positioning}
+
+\begin{document}
+\begin{tikzpicture}[
+    scale=1.0,
+    box/.style={draw,rounded corners,fill=blue!5,minimum width=5.2cm,minimum height=6.2cm,align=center},
+    subbox/.style={draw,rounded corners,fill=gray!5,minimum width=4.6cm,minimum height=2.2cm,align=center},
+    arrow/.style={-{Stealth[scale=1.2]},thick},
+    label/.style={font=\small\itshape},
+    bad/.style={red!70!black,thick},
+    good/.style={blue!60!black,thick},
+]
+
+% ===== LEFT: Cartesian encoding =====
+\node[box] (cart) at (0,0) {};
+\node[font=\bfseries] at (0,3.3) {(a) Cartesian Encoding};
+\node[font=\small] at (0,2.7) {waypoints = $(x_j, y_j, z_j)$};
+
+% Draw a wiggly path in Cartesian
+\draw[bad,rounded corners] (-2.0,1.5) -- (-1.0,0.8) -- (0.5,1.6) -- (1.5,0.3) -- (2.2,1.2);
+% Points
+\foreach \p/\l in {(-2.0,1.5)/P_1,(-1.0,0.8)/P_2,(0.5,1.6)/P_3,(1.5,0.3)/P_4,(2.2,1.2)/P_5} {
+    \fill[red!70!black] \p circle (2.5pt);
+}
+\node[font=\footnotesize,red!70!black] at (-2.0,0.8) {$P_1$};
+\node[font=\footnotesize,red!70!black] at (2.2,0.5) {$P_n$};
+
+% Labels showing problems
+\node[font=\footnotesize\color{red!70!black},align=center] at (0,-0.8) {No intrinsic link\\to UAV motion};
+\node[font=\footnotesize\color{red!70!black},align=center] at (0,-1.5) {Constraints via\\penalty functions};
+
+% ===== ARROW between =====
+\draw[arrow,line width=1.2pt] (2.9,0) -- (4.5,0) node[midway,above,font=\small] {encoding};
+
+% ===== RIGHT: Spherical encoding =====
+\node[box] (sph) at (7.4,0) {};
+\node[font=\bfseries] at (7.4,3.3) {(b) Spherical Vector Encoding (SPSO)};
+\node[font=\small] at (7.4,2.7) {segments = $(\rho_j, \psi_j, \phi_j)$};
+
+% Draw a UAV and path in spherical representation
+% UAV icon (simple)
+\node[font=\Large] at (5.2,2.2) {\scriptsize UAV};
+\draw[good,rounded corners] (5.4,1.5) -- (6.2,1.2) -- (7.0,1.8) -- (7.8,0.8) -- (8.8,1.5);
+\foreach \p in {(5.4,1.5),(6.2,1.2),(7.0,1.8),(7.8,0.8),(8.8,1.5)} {
+    \fill[blue!60!black] \p circle (2.5pt);
+}
+
+% Segment labels with spherical params
+\draw[good,decorate,decoration={brace,amplitude=4pt}] (5.4,2.0) -- (6.2,1.7) node[midway,above=4pt,font=\tiny\color{blue!60!black}] {$(\rho_1,\psi_1,\phi_1)$};
+\draw[good,decorate,decoration={brace,amplitude=4pt}] (6.2,1.7) -- (7.0,2.3) node[midway,above=4pt,font=\tiny\color{blue!60!black}] {$(\rho_2,\psi_2,\phi_2)$};
+
+% Mapping annotations
+\node[font=\footnotesize\color{blue!60!black},align=left] at (9.8,1.0) {$\rho \rightarrow$ speed\\$\psi \rightarrow$ climb angle\\$\phi \rightarrow$ turn angle};
+
+% Benefits
+\draw[arrow,green!50!black] (7.4,-0.3) -- (7.4,-0.8);
+\node[font=\footnotesize\color{green!50!black},align=center] at (7.4,-1.1) {Constraints encoded\\in search bounds};
+
+\draw[arrow,green!50!black] (7.4,-1.5) -- (7.4,-2.0);
+\node[font=\footnotesize\color{green!50!black},align=center] at (7.4,-2.3) {Search in UAV's\\configuration space};
+
+% ===== Bottom: conversion formula =====
+\node[font=\small,align=center] at (3.7,-3.2) {$\begin{aligned}
+    x_{j+1} &= x_j + \rho_j \sin\psi_j \cos\phi_j \\
+    y_{j+1} &= y_j + \rho_j \sin\psi_j \sin\phi_j \\
+    z_{j+1} &= z_j + \rho_j \cos\psi_j
+\end{aligned}$};
+
+\end{tikzpicture}
+\end{document}

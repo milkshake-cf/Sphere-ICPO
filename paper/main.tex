@@ -1,6 +1,7 @@
 \documentclass[11pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb}
+\usepackage{graphicx}
 
 \title{Sphere-ICPO: A Spherical Vector-Based Improved Crested Porcupine Optimizer for UAV 3D Path Planning}
 \author{}
@@ -15,29 +16,35 @@ The Crested Porcupine Optimizer (CPO) is a recently proposed metaheuristic with 
 
 \section{Introduction}
 
-Unmanned aerial vehicles (UAVs) have become indispensable tools across logistics delivery, power line inspection, forest fire monitoring, and disaster response. A critical enabler for autonomous UAV operations is three-dimensional (3D) path planning---the task of generating a feasible, safe, and optimal flight trajectory from a start point to a destination while satisfying kinematic constraints and avoiding obstacles. This problem is fundamentally challenging because it requires simultaneously optimizing multiple conflicting objectives under highly nonlinear constraints imposed by terrain, threats, and UAV dynamics.
+Three-dimensional (3D) path planning is a fundamental enabler for autonomous unmanned aerial vehicles (UAVs), with applications spanning logistics delivery, infrastructure inspection, environmental monitoring, and emergency response \cite{icpo2024,qcpo2025,jayacpo2025}. The problem requires generating a collision-free trajectory from a start point to a destination while simultaneously optimizing path length, safety, altitude, and smoothness under nonlinear constraints imposed by terrain, no-fly zones, and UAV kinematics. Metaheuristic algorithms have become the dominant solution paradigm due to their gradient-free nature and flexibility in handling multi-objective optimization \cite{sps2021,cpo2024}.
 
-Existing approaches to UAV path planning can be broadly categorized into graph search methods (e.g., Voronoi diagrams, probabilistic roadmaps), cell decomposition algorithms (e.g., A*, D*), artificial potential field methods, and nature-inspired metaheuristics. Among these, metaheuristic algorithms have emerged as the predominant paradigm. Particle Swarm Optimization (PSO) and its variants have been particularly popular, alongside more recent algorithms such as Grey Wolf Optimizer (GWO), Whale Optimization Algorithm (WOA), and Crested Porcupine Optimizer (CPO).
+Among recently proposed metaheuristics, the Crested Porcupine Optimizer (CPO) \cite{cpo2024} stands out for its rich behavioral repertoire. Inspired by four defensive strategies of crested porcupines---visual intimidation, acoustic deterrence, olfactory repellent, and physical attack---CPO organizes search into distinct exploration (visual, acoustic) and exploitation (olfactory, physical) phases. CPO has demonstrated competitive performance on CEC benchmark suites and has rapidly spawned improvement efforts. Liu et al. \cite{icpo2024} proposed ICPO, integrating Symbiotic Organisms Search (SOS) mutualism and periodic retreat, achieving a 63\% cost reduction on urban terrain. Liu et al. \cite{qcpo2025} developed QCPO with Q-learning for adaptive parameter control, Zhang et al. \cite{jayacpo2025} proposed JAYA-CPO fusing JAYA with CPO's attack strategy, Zhang et al. \cite{multiicpo2026} introduced Multi-ICPO with Tent chaotic mapping and Cauchy-Gaussian mutation, and Shi and Li \cite{mocpo2026} extended CPO to multi-objective optimization as MOCPO.
 
-A landmark advancement was the introduction of \textbf{spherical vector encoding} by Phung and Ha in their Spherical Vector-based PSO (SPSO). Unlike conventional approaches that directly encode path waypoints as Cartesian coordinates $(x, y, z)$, SPSO represents each path segment as a spherical vector $(\rho, \psi, \phi)$, where the magnitude $\rho$, elevation angle $\psi$, and azimuth angle $\phi$ correspond directly to the UAV's speed, climbing angle, and turning angle, respectively. This encoding offers two decisive advantages: (i) UAV kinematic constraints can be naturally incorporated as search bounds on $\psi$ and $\phi$, dramatically reducing the feasible search space; and (ii) the search operates in the UAV's configuration space rather than Cartesian space, yielding higher-quality solutions.
+A critical observation motivates this work: \textbf{all existing CPO variants operate in Cartesian coordinate space}, where waypoints are encoded directly as $(x, y, z)$ coordinates. Cartesian encoding bears no intrinsic relationship to UAV motion parameters, requiring kinematic constraints to be enforced indirectly through penalty functions. An alternative paradigm---spherical vector encoding---was introduced by Phung and Ha \cite{sps2021} in their Spherical Vector-based PSO (SPSO). Each path segment is represented as $(\rho, \psi, \phi)$, mapping directly to the UAV's speed, climbing angle, and turning angle, thereby encoding kinematic feasibility into the search bounds and transforming the search into the UAV's configuration space. \textbf{No prior work} has investigated CPO under spherical vector encoding, leaving open the question of whether CPO's defense strategies can be effectively adapted to this representation.
 
-The Crested Porcupine Optimizer (CPO), proposed by Abdel-Basset et al., is a recently developed metaheuristic inspired by the four defensive behaviors of crested porcupines: visual intimidation, acoustic deterrence, olfactory repellent, and physical attack. CPO has demonstrated outstanding performance on CEC benchmark suites and has rapidly attracted improvement efforts. Liu et al. proposed ICPO, integrating Symbiotic Organisms Search (SOS) mutualism and a periodic retreat strategy, achieving a 63\% cost reduction on urban terrain. Liu et al. developed QCPO, embedding Q-learning for adaptive parameter tuning, while Zhang et al. proposed JAYA-CPO, fusing the JAYA algorithm with CPO's attack strategy. Zhang et al. introduced Multi-ICPO with Tent chaotic mapping and Cauchy-Gaussian mutation. Shi and Li extended CPO to multi-objective optimization as MOCPO.
-
-Despite these advances, a critical observation emerges: \textbf{none of the existing CPO improvements utilize spherical vector encoding}. All operate in Cartesian space, where the search variables bear no physical relationship to UAV motion parameters, and kinematic constraints must be enforced through penalty terms rather than being intrinsically encoded.
-
-When CPO is naively transplanted into the spherical vector framework, three structural limitations become apparent. \textbf{First}, CPO's visual and acoustic defense strategies rely on random individual differentiation---for instance, the sound strategy computes $\mathbf{x}_{r1} - \mathbf{x}_{r2}$ to generate a search direction. In the spherical coordinate space, where constraint violations produce infinite cost, randomly selected individuals are frequently infeasible, rendering differential guidance ineffective. \textbf{Second}, the exploration--exploitation switch is governed by a purely random mechanism $\text{rand}() < \text{rand}()$, which maintains a fixed 50\% exploration probability throughout the entire optimization process. \textbf{Third}, CPO lacks a dedicated escape mechanism; once the population converges to a local optimum in the later stages of optimization, none of the four defense strategies can effectively redirect the search.
-
-To address these limitations, this paper proposes \textbf{Sphere-ICPO}, a spherical vector-based improved Crested Porcupine Optimizer for UAV 3D path planning. Building upon the CPO defensive framework and the SPSO spherical encoding infrastructure, three targeted innovations are introduced:
+Our preliminary experiments reveal that na\"ively transplanting CPO into the spherical vector framework produces poor performance. We identify three structural root causes:
 
 \begin{enumerate}
-    \item \textbf{SOS Mutualism for Exploration:} The original CPO visual and acoustic defense strategies are replaced with symbiotic organisms search (SOS) mutualism. Unlike random individual differentiation, SOS enables each agent to cooperate with a randomly selected partner and jointly move toward the global best solution, providing robust guidance even when the partner is infeasible. This represents the first application of SOS mutualism in the spherical vector space.
+    \item \textbf{Ineffective exploration through random differentiation.} CPO's visual and acoustic strategies generate search directions via differences between randomly selected individuals ($\mathbf{x}_{r1} - \mathbf{x}_{r2}$). In spherical space, where constraint violations produce infinite cost, randomly selected individuals are frequently infeasible, rendering the differential signal meaningless.
 
-    \item \textbf{Adaptive Exploration Ratio:} The purely random exploration switch $\text{rand}() < \text{rand}()$ is replaced with an adaptive nonlinear decay function $a(t) = 2(0.7(1 - t/T)^{0.5} + 0.3)$, enabling a smooth transition from approximately 100\% exploration in early iterations to approximately 30\% in later iterations.
+    \item \textbf{Rigid exploration--exploitation switching.} CPO employs $\text{rand}() < \text{rand}()$ to choose between exploration and exploitation, yielding a fixed 50\% probability regardless of the optimization stage. This prevents the natural transition from broad initial exploration to focused late-stage exploitation.
 
-    \item \textbf{Stagnation-Triggered Periodic Retreat:} Rather than triggering retreat at fixed intervals as in prior work, the retreat mechanism is activated only when the global best solution remains unchanged for five consecutive iterations. Retreat employs cosine-geometric back-stepping toward the current best position with a logarithmically decaying step size, providing targeted escape from local optima without disrupting ongoing convergence.
+    \item \textbf{Absence of local-optimum escape.} Once the population converges to a suboptimal basin, none of CPO's four strategies can redirect the search. The olfactory and physical attack strategies refine locally, while the visual and acoustic strategies lack the perturbation magnitude to cross basin boundaries.
 \end{enumerate}
 
-The effectiveness of Sphere-ICPO is validated through comprehensive experiments on four benchmark scenarios constructed from real LiDAR DEM data of Christmas Island, Australia. The threat configurations span from 3 scattered threats to 7 dense threats, covering a complete spectrum of environmental complexity. An ablation study isolates the contribution of each innovation, while multi-algorithm comparisons against SPSO, GWO, CPO, and WOA---supported by Wilcoxon rank-sum and Friedman statistical tests---demonstrate the robustness and statistical significance of the proposed approach. Notably, with an equivalent population of 500 particles, Sphere-ICPO outperforms SPSO on three of four maps while reducing the mean cost by up to 26.7\% relative to the baseline spherical CPO.
+To address these three limitations, this paper proposes \textbf{Sphere-ICPO}, which adapts and extends CPO for spherical vector-based UAV path planning. Our contributions are:
+
+\begin{enumerate}
+    \item \textbf{SOS mutualism in spherical space.} We replace CPO's visual and acoustic strategies with SOS mutualism, where each agent cooperates with a randomly selected partner and is jointly guided toward the global best. Unlike random differentiation, this mechanism provides robust directional guidance regardless of partner feasibility. This is the first application of SOS mutualism under spherical vector encoding.
+
+    \item \textbf{Adaptive exploration ratio.} We replace $\text{rand}() < \text{rand}()$ with a nonlinear decay function $a(t) = 2\left(0.7(1 - t/T)^{0.5} + 0.3\right)$, enabling a smooth transition from $\approx$100\% exploration to $\approx$30\% exploitation over the course of optimization.
+
+    \item \textbf{Stagnation-triggered retreat.} Unlike prior work \cite{icpo2024} that triggers population retreat at fixed intervals---potentially disrupting productive convergence---Sphere-ICPO activates retreat only when the global best stagnates for five consecutive iterations. Retreat uses cosine-geometric back-stepping with logarithmically decaying step size, providing targeted escape without unnecessary perturbation.
+\end{enumerate}
+
+Comprehensive experiments on four benchmark scenarios constructed from real LiDAR DEM data---spanning 3 to 7 threats---demonstrate that Sphere-ICPO outperforms SPSO on three of four maps and reduces mean cost by up to 26.7\% over the baseline spherical CPO. Ablation studies confirm that each proposed component contributes independently, with SOS mutualism providing the largest benefit. Wilcoxon rank-sum and Friedman tests ($p = 0.0113$) confirm the statistical significance of the improvements.
+
+The remainder of this paper is organized as follows. Section~2 formulates the path planning problem and the spherical vector encoding framework adopted from SPSO~\cite{sps2021}. Section~3 details the proposed Sphere-ICPO algorithm. Section~4 reports experimental results including ablation, comparison, and statistical analyses. Section~5 concludes the paper.
 
 \section{Problem Formulation}
 
@@ -56,6 +63,13 @@ The mapping from spherical vectors to Cartesian waypoints is:
     z_{j+1} &= z_j + \rho_j \cos\psi_j \label{eq:cartz}
 \end{align}
 where $(x_1, y_1, z_1)$ and $(x_n, y_n, z_n)$ are the fixed start and end points, respectively.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.92\textwidth]{../figures/fig_spherical_encoding.png}
+\caption{Spherical vector encoding: (a)~Cartesian coordinates bear no intrinsic relationship to UAV motion, requiring penalty-based constraint enforcement; (b)~spherical vectors $(\rho,\psi,\phi)$ map directly to the UAV's speed, climbing angle, and turning angle, encoding kinematic feasibility into the search bounds.}
+\label{fig:spherical}
+\end{figure}
 
 \subsection{Cost Function}
 
@@ -95,6 +109,13 @@ Sphere-ICPO retains the four-defense-strategy framework of CPO while introducing
     \item \quad \textbf{end if}
     \item \textbf{end for}
 \end{enumerate}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\textwidth]{../figures/fig_flowchart.png}
+\caption{Flowchart of the Sphere-ICPO algorithm. Three innovations are highlighted: (1)~SOS mutualism replaces CPO's visual and acoustic strategies for robust exploration in spherical space; (2)~an adaptive exploration ratio $a(t)$ enables smooth transition from exploration to exploitation; (3)~stagnation-triggered retreat provides targeted local-optimum escape.}
+\label{fig:flowchart}
+\end{figure}
 
 \subsection{SOS Mutualism for Exploration}
 
@@ -138,6 +159,14 @@ Four benchmark scenarios are constructed from real LiDAR Digital Elevation Model
 
 All algorithms are implemented within the same spherical vector encoding and cost function framework. Sphere-ICPO employs 500 particles over 200 iterations, matching SPSO's configuration for fair comparison. GWO, CPO, and WOA use 150 particles each, following their standard configurations. Each algorithm is executed independently 20 times per scenario, and results are reported as mean $\pm$ standard deviation. Two statistical tests are employed: the Wilcoxon rank-sum test ($\alpha = 0.05$) for pairwise comparisons and the Friedman test for overall ranking.
 
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{../figures/map1_final.png}
+\includegraphics[width=0.95\textwidth]{../figures/map4_final.png}
+\caption{Representative benchmark scenarios: Map~1 with 6 threats of mixed radii (70--80~m), and Map~4 with 7 uniformly dense threats (all 70~m). Both constructed from real LiDAR DEM data of Christmas Island, Australia.}
+\label{fig:maps}
+\end{figure}
+
 \subsection{Ablation Study}
 
 To isolate the contribution of each innovation, four variants are constructed by systematically removing components from the full Sphere-ICPO: \textit{noSOS} replaces SOS mutualism with CPO's original visual and acoustic strategies (while retaining adaptive exploration ratio and retreat), \textit{noAdapt} replaces the adaptive exploration ratio with a fixed 50\% probability (while retaining SOS and retreat), and \textit{noRetreat} removes the stagnation-triggered retreat (while retaining SOS and adaptive exploration). The baseline CPO retains the original four defense strategies without any innovations.
@@ -161,6 +190,13 @@ noRetreat & $\checkmark$ & $\checkmark$ & -- & 5249.58 $\pm$ 349.86 \\
 \end{tabular}
 \end{table}
 
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.78\textwidth]{../figures/fig_ablation.png}
+\caption{Ablation study results visualized: mean cost with standard deviation error bars for each variant on Map~1.}
+\label{fig:ablation}
+\end{figure}
+
 \subsection{Multi-Map Comparison}
 
 Table~\ref{tab:comparison} presents the comprehensive comparison of Sphere-ICPO against SPSO, GWO, CPO, and WOA across all four scenarios. Sphere-ICPO achieves the best mean cost on three of four maps (Maps~2, 3, and 4), and ranks second on Map~1 behind SPSO. Notably, on Map~3, Sphere-ICPO achieves both the lowest mean cost (4948.96) and the lowest standard deviation (49.77), indicating exceptional optimization stability in sparse-threat environments. On the most challenging Map~4 (seven dense threats), Sphere-ICPO outperforms SPSO by 31.20 units (0.63\%) while exhibiting competitive stability (Std 44.15 vs.~SPSO's 53.70).
@@ -169,7 +205,7 @@ Across all scenarios, Sphere-ICPO consistently and substantially outperforms the
 
 \begin{table}[h]
 \centering
-\caption{Multi-map comparison (20 independent runs per algorithm per map). Best mean values in \textbf{bold}. Particle counts: SPSO 500, GWO 150, CPO 150, WOA 150, ICPO 500.}
+\caption{Multi-map comparison (20 independent runs per algorithm per map). Best mean values in \textbf{bold}. Particle counts: SPSO 500, GWO 150, CPO 150, WOA 150, Sphere-ICPO 500.}
 \label{tab:comparison}
 \begin{tabular}{lccccc}
 \hline
@@ -182,6 +218,20 @@ Across all scenarios, Sphere-ICPO consistently and substantially outperforms the
 \hline
 \end{tabular}
 \end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.92\textwidth]{../figures/fig_path_comparison.png}
+\caption{Top-down view of the best paths generated by SPSO and Sphere-ICPO on Map~1 (left) and Map~4 (right). Threats are shown as red dashed circles; the start point is marked by a green square and the end point by a red triangle.}
+\label{fig:paths}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.55\textwidth]{../figures/fig_convergence.png}
+\caption{Convergence curves of Sphere-ICPO versus baseline algorithms on Map~1 (left) and Map~4 (right), averaged over 20 independent runs.}
+\label{fig:convergence}
+\end{figure}
 
 \subsection{Statistical Validation}
 
@@ -204,6 +254,13 @@ Table~\ref{tab:wilcoxon} reports the $p$-values from Wilcoxon rank-sum tests com
 \end{table}
 
 The Friedman test yields an overall ranking of Sphere-ICPO (2.00) $>$ SPSO (1.75) $>$ GWO (2.25) $>$ CPO (4.00) $>$ WOA (5.00), with $p = 0.0113$, confirming a statistically significant overall difference among algorithms. Sphere-ICPO achieves the best rank, demonstrating its consistent superiority across diverse environmental conditions.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\textwidth]{../figures/fig_boxplot.png}
+\caption{Boxplot comparison of cost distributions across all four maps and five algorithms (20 independent runs each). Sphere-ICPO shows consistently lower median costs and tighter interquartile ranges compared to GWO, CPO, and WOA.}
+\label{fig:boxplot}
+\end{figure}
 
 \section{Conclusion}
 
