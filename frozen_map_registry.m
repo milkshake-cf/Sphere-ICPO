@@ -1,0 +1,9 @@
+function maps = frozen_map_registry()
+%FROZEN_MAP_REGISTRY Stable map order used by all formal experiments.
+maps = {
+    struct('id',1,'name','Map1_4Threat_Sparse',   'func',@CreateModel_map1), ...
+    struct('id',2,'name','Map2_5Threat_Clustered','func',@CreateModel_map2), ...
+    struct('id',3,'name','Map3_6Threat_Staggered','func',@CreateModel_map3), ...
+    struct('id',4,'name','Map4_7Threat_Dense',    'func',@CreateModel_map4)
+};
+end

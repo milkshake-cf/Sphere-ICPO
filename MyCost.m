@@ -3,6 +3,9 @@
 %
 
 function cost=MyCost(sol,model)
+    global SPHERE_ICPO_EVAL_COUNT
+    if isempty(SPHERE_ICPO_EVAL_COUNT), SPHERE_ICPO_EVAL_COUNT = 0; end
+    SPHERE_ICPO_EVAL_COUNT = SPHERE_ICPO_EVAL_COUNT + 1;
     
     J_inf = inf;
     n = model.n;

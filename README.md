@@ -13,15 +13,18 @@ Sphere-ICPO enhances the Crested Porcupine Optimizer (CPO) for UAV 3D path plann
 
 Built upon the [SPSO framework](https://github.com/duongpm/SPSO) (Phung & Ha, 2021).
 
-## Results (Map4 — 7 threats, 150 particles)
+## Results (frozen 4-map benchmark, 500 particles)
 
-| Algorithm | Mean Cost | Std |
-|:--|:--|:--|
-| SPSO (500 particles) | 4935 | 58 |
-| CPO (150 particles) | 6089 | 252 |
-| **Sphere-ICPO (150 particles)** | **5015** | **275** |
+All five algorithms use 500 particles, 200 iterations, and 30 independent runs.
 
-> Sphere-ICPO with **150 particles** nearly matches SPSO with **500 particles** (gap: 1.6%).
+| Map | SPSO | GWO | CPO | WOA | **Sphere-ICPO** |
+|:--|--:|--:|--:|--:|--:|
+| Map1 (4 threats) | 4705.02 | 4691.94 | 4775.28 | 5610.32 | **4686.81** |
+| Map2 (5 threats) | 5060.89 | 5071.25 | 5169.57 | 5971.80 | **5054.58** |
+| Map3 (6 threats) | 5260.68 | **5235.05** | 5551.59 | 6794.28 | 5353.75 |
+| Map4 (7 threats) | 4909.26 | 4900.53 | 5073.04 | 5999.41 | **4897.10** |
+
+Sphere-ICPO ranks first overall (average rank 1.50), wins 3 of 4 maps by mean cost, and the Friedman test detects an overall difference ($p=0.00869$). Pairwise significance is reported with Holm correction in the result bundle.
 
 ## Quick Start
 
@@ -36,9 +39,9 @@ model = CreateModel();
 ├── runICPO_SOSv4_mm.m   ← 🏆 Current best: Sphere-ICPO
 ├── runCPO_mm.m          ← CPO baseline
 ├── runSPSO_mm.m         ← SPSO baseline
-├── batch_final.m        ← Full comparison script
+├── run_experiment_suite.m ← resumable smoke/precheck/formal experiment pipeline
 ├── vault/               ← Obsidian knowledge base (experiments + daily logs)
-└── results/             ← Experiment result .mat files
+└── results/             ← raw checkpoints, manifests, statistics, and figures
 ```
 
 ## License

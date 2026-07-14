@@ -2,10 +2,16 @@
 *.tif
 *.mat
 results/
+tmp/
+文献/
 
 # MATLAB
 *.m~
 *.asv
+
+# LaTeX intermediate files
+paper/*.aux
+paper/*.log
 
 # Obsidian
 .obsidian/

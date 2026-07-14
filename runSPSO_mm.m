@@ -1,4 +1,6 @@
-function [GlobalBest, BestCost] = runSPSO_mm(model, nPop, MaxIt)
+function [GlobalBest, BestCost, RunInfo] = runSPSO_mm(model, nPop, MaxIt)
+    global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
+    initialRng = rng; runTimer = tic;
     nVar = model.n; VarSize = [1 nVar];
     VarMin.x=model.xmin; VarMax.x=model.xmax;
     VarMin.y=model.ymin; VarMax.y=model.ymax;
@@ -22,11 +24,10 @@ function [GlobalBest, BestCost] = runSPSO_mm(model, nPop, MaxIt)
     isInit=false;
     while ~isInit
         for i=1:nPop
-            particle(i).Position=CreateRandomSolution(VarSize,VarMin,VarMax);
+            [particle(i).Position,particle(i).Cost]=CreateFiniteRandomSolution(VarSize,VarMin,VarMax,model);
             particle(i).Velocity.r=zeros(VarSize);
             particle(i).Velocity.psi=zeros(VarSize);
             particle(i).Velocity.phi=zeros(VarSize);
-            particle(i).Cost = MyCost(SphericalToCart(particle(i).Position,model),model);
             particle(i).Best.Position=particle(i).Position;
             particle(i).Best.Cost=particle(i).Cost;
             if particle(i).Best.Cost < GlobalBest.Cost, GlobalBest=particle(i).Best; isInit=true; end
@@ -53,4 +54,5 @@ function [GlobalBest, BestCost] = runSPSO_mm(model, nPop, MaxIt)
         BestCost(iter) = GlobalBest.Cost;
         w=w*wdamp;
     end
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model);
 end

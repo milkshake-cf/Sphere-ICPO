@@ -1,5 +1,8 @@
 % runCPO_mm.m — CPO runner (baseline, same as CPO_MAIN_v2 logic)
-function [GlobalBest, BestCost] = runCPO_mm(model, nPop, MaxIt)
+function [GlobalBest, BestCost, RunInfo] = runCPO_mm(model, nPop, MaxIt)
+
+    global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
+    initialRng = rng; runTimer = tic;
 
     CostFunction = @(x) MyCost(x, model);
     nVar = model.n; VarSize = [1 nVar];
@@ -23,13 +26,7 @@ function [GlobalBest, BestCost] = runCPO_mm(model, nPop, MaxIt)
     isInit = false;
     while ~isInit
         for i = 1:nPop
-            pop(i).Position = CreateRandomSolution(VarSize, VarMin, VarMax);
-            cartPos = SphericalToCart(pop(i).Position, model);
-            if any(isnan(cartPos.x)) || any(isnan(cartPos.y)) || any(isnan(cartPos.z))
-                pop(i).Cost = inf;
-            else
-                try, pop(i).Cost = CostFunction(cartPos); catch, pop(i).Cost = inf; end
-            end
+            [pop(i).Position,pop(i).Cost] = CreateFiniteRandomSolution(VarSize,VarMin,VarMax,model);
             prev_positions{i} = pop(i).Position;
             if pop(i).Cost < GlobalBest.Cost
                 GlobalBest.Position = pop(i).Position; GlobalBest.Cost = pop(i).Cost; isInit = true;
@@ -64,15 +61,18 @@ function [GlobalBest, BestCost] = runCPO_mm(model, nPop, MaxIt)
             else  % EXPLOITATION
                 Yt = 2 * rand() * (1 - t/MaxIt)^(t/MaxIt);
                 U2 = (rand(VarSize) < 0.5) * 2 - 1; S_base = rand() * U2;
-                allCosts = [pop.Cost]; sumFitness = sum(allCosts) + eps;
+                allCosts = [pop.Cost]; finiteCosts = allCosts(isfinite(allCosts));
+                sumFitness = sum(finiteCosts) + eps;
+                safeCost = pop(i).Cost;
+                if ~isfinite(safeCost), safeCost = max(finiteCosts)*10; end
                 if rand() < Tf  % Strategy 3
-                    St = exp(pop(i).Cost / sumFitness); S = S_base .* Yt .* St;
+                    St = exp(safeCost / sumFitness); S = S_base .* Yt .* St;
                     k = randi(nPop); m = randi(nPop);
                     pop(i).Position.r = (1-U1).*pop(i).Position.r + U1.*(pop(k).Position.r + St*(pop(m).Position.r - pop(k).Position.r) - S);
                     pop(i).Position.psi = (1-U1).*pop(i).Position.psi + U1.*(pop(k).Position.psi + St*(pop(m).Position.psi - pop(k).Position.psi) - S);
                     pop(i).Position.phi = (1-U1).*pop(i).Position.phi + U1.*(pop(k).Position.phi + St*(pop(m).Position.phi - pop(k).Position.phi) - S);
                 else  % Strategy 4
-                    Mt = exp(pop(i).Cost / sumFitness); k = randi(nPop);
+                    Mt = exp(safeCost / sumFitness); k = randi(nPop);
                     vt = pop(i).Position; Vtp = pop(k).Position; r2_param = rand();
                     Ft_r = rand(VarSize).*(Mt*(-vt.r + Vtp.r)); S_r = S_base.*Yt.*Ft_r;
                     pop(i).Position.r = GlobalBest.Position.r + (alpha_param*(1-r2_param)+r2_param)*(U2.*GlobalBest.Position.r - pop(i).Position.r) - S_r;
@@ -104,4 +104,5 @@ function [GlobalBest, BestCost] = runCPO_mm(model, nPop, MaxIt)
             end
         end
     end
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model);
 end

@@ -11,7 +11,7 @@
 \maketitle
 
 \begin{abstract}
-The Crested Porcupine Optimizer (CPO) is a recently proposed metaheuristic with strong performance on global optimization benchmarks. However, existing CPO improvements for UAV path planning all operate in Cartesian coordinates, neglecting the advantages of spherical vector encoding pioneered by the SPSO framework. When naively transplanted into spherical vector space, CPO exhibits three structural weaknesses: ineffective exploration due to random individual differentiation in a highly constrained search space, a rigid random exploration--exploitation switch, and the absence of a local-optimum escape mechanism. This paper proposes Sphere-ICPO, which addresses these limitations through three targeted innovations: (1) SOS mutualism replacing CPO's visual and acoustic defense strategies, representing the first application of symbiotic search in spherical vector space; (2) an adaptive nonlinear exploration ratio enabling smooth transition from exploration to exploitation; and (3) a stagnation-triggered periodic retreat mechanism for intelligent local-optimum escape. Comprehensive experiments on four benchmark scenarios constructed from real LiDAR DEM data demonstrate that Sphere-ICPO outperforms SPSO on three of four maps at equivalent population sizes. Ablation studies isolate the contribution of each innovation, and Wilcoxon and Friedman tests confirm statistical significance.
+The Crested Porcupine Optimizer (CPO) is a recently proposed metaheuristic with strong performance on global optimization benchmarks. However, existing CPO improvements for UAV path planning all operate in Cartesian coordinates, neglecting the advantages of spherical vector encoding pioneered by the SPSO framework. When naively transplanted into spherical vector space, CPO exhibits three structural weaknesses: ineffective exploration due to random individual differentiation in a highly constrained search space, a rigid random exploration--exploitation switch, and the absence of a local-optimum escape mechanism. This paper proposes Sphere-ICPO, which combines SOS mutualism, a nonlinear exploration schedule, and stagnation-triggered retreat in spherical vector space. On four preregistered LiDAR DEM scenarios, all five algorithms were evaluated with 500 particles, 200 iterations, and 30 independent runs. Sphere-ICPO obtained the lowest mean cost on three maps and the best average rank (1.50); the Friedman test detected an overall difference ($p=0.00869$). Holm-corrected pairwise tests show significant gains over all baselines on Map~2 and over CPO and WOA on every map. Ablation results identify SOS mutualism as the robust core component, while the adaptive schedule and retreat do not independently reduce mean cost on the selected ablation scenario.
 \end{abstract}
 
 \section{Introduction}
@@ -42,7 +42,7 @@ To address these three limitations, this paper proposes \textbf{Sphere-ICPO}, wh
     \item \textbf{Stagnation-triggered retreat.} Unlike prior work \cite{icpo2024} that triggers population retreat at fixed intervals---potentially disrupting productive convergence---Sphere-ICPO activates retreat only when the global best stagnates for five consecutive iterations. Retreat uses cosine-geometric back-stepping with logarithmically decaying step size, providing targeted escape without unnecessary perturbation.
 \end{enumerate}
 
-Comprehensive experiments on four benchmark scenarios constructed from real LiDAR DEM data---spanning 3 to 7 threats---demonstrate that Sphere-ICPO outperforms SPSO on three of four maps and reduces mean cost by up to 26.7\% over the baseline spherical CPO. Ablation studies confirm that each proposed component contributes independently, with SOS mutualism providing the largest benefit. Wilcoxon rank-sum and Friedman tests ($p = 0.0113$) confirm the statistical significance of the improvements.
+Comprehensive experiments on four frozen benchmark scenarios constructed from real LiDAR DEM data---spanning 4 to 7 threats---show that Sphere-ICPO attains the lowest mean cost on three maps and the best average rank among five algorithms. The ablation study confirms SOS mutualism as the robust core improvement, but does not support independent mean-cost gains from every auxiliary component. Holm-corrected Wilcoxon tests and a Friedman test ($p=0.00869$) provide a more conservative statistical assessment.
 
 The remainder of this paper is organized as follows. Section~2 formulates the path planning problem and the spherical vector encoding framework adopted from SPSO~\cite{sps2021}. Section~3 details the proposed Sphere-ICPO algorithm. Section~4 reports experimental results including ablation, comparison, and statistical analyses. Section~5 concludes the paper.
 
@@ -58,9 +58,9 @@ where $n$ is the total number of waypoints (including fixed start and end points
 
 The mapping from spherical vectors to Cartesian waypoints is:
 \begin{align}
-    x_{j+1} &= x_j + \rho_j \sin\psi_j \cos\phi_j \label{eq:cartx} \\
-    y_{j+1} &= y_j + \rho_j \sin\psi_j \sin\phi_j \label{eq:carty} \\
-    z_{j+1} &= z_j + \rho_j \cos\psi_j \label{eq:cartz}
+    x_{j+1} &= x_j + \rho_j \cos\psi_j \sin\phi_j \label{eq:cartx} \\
+    y_{j+1} &= y_j + \rho_j \cos\psi_j \cos\phi_j \label{eq:carty} \\
+    z_{j+1} &= z_j + \rho_j \sin\psi_j \label{eq:cartz}
 \end{align}
 where $(x_1, y_1, z_1)$ and $(x_n, y_n, z_n)$ are the fixed start and end points, respectively.
 
@@ -155,15 +155,14 @@ where $r_g$ is the logarithmically decaying retreat radius (from $0.9$ to $0.1$)
 
 \subsection{Experimental Setup}
 
-Four benchmark scenarios are constructed from real LiDAR Digital Elevation Model (DEM) data of Christmas Island, Australia, with threat counts ranging from 3 to 7: Map~1 (6 threats, mixed radii 70--80~m), Map~2 (5 threats, clustered in the center, radii 50--90~m), Map~3 (3 threats, scattered large radii 90--100~m), and Map~4 (7 threats, uniformly dense, all radii 70~m). All scenarios share the same start point $(200, 100, 150)$ and end point $(800, 800, 150)$. The number of path waypoints is $n = 12$ (10 free spherical vectors).
+Four benchmark scenarios are constructed from real LiDAR Digital Elevation Model (DEM) data of Christmas Island, Australia. They are ordered by threat count: Map~1 contains four sparse threats, Map~2 contains five centrally clustered threats, Map~3 contains six staggered threats, and Map~4 contains seven dense threats. All scenarios share the start point $(200,100,150)$, end point $(800,800,150)$, terrain, cost function, and ten free spherical vectors. Threat coordinates were frozen before the formal runs; geometry checks confirmed boundary validity, start/end clearance, and the existence of a path with an 11~m safety margin.
 
-All algorithms are implemented within the same spherical vector encoding and cost function framework. Sphere-ICPO employs 500 particles over 200 iterations, matching SPSO's configuration for fair comparison. GWO, CPO, and WOA use 150 particles each, following their standard configurations. Each algorithm is executed independently 20 times per scenario, and results are reported as mean $\pm$ standard deviation. Two statistical tests are employed: the Wilcoxon rank-sum test ($\alpha = 0.05$) for pairwise comparisons and the Friedman test for overall ranking.
+All algorithms use the same spherical encoding, finite-solution initialization rule, population size (500), and iteration budget (200). Each algorithm is executed independently 30 times per scenario with a preregistered seed schedule. Every run stores its final path, convergence history, elapsed time, and actual number of objective evaluations. Results are reported as mean $\pm$ standard deviation. Pairwise comparisons use two-sided Wilcoxon rank-sum tests with Holm correction and Vargha--Delaney $A_{12}$ effect sizes; overall ranks are assessed with the Friedman test.
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.95\textwidth]{../figures/map1_final.png}
-\includegraphics[width=0.95\textwidth]{../figures/map4_final.png}
-\caption{Representative benchmark scenarios: Map~1 with 6 threats of mixed radii (70--80~m), and Map~4 with 7 uniformly dense threats (all 70~m). Both constructed from real LiDAR DEM data of Christmas Island, Australia.}
+\includegraphics[width=0.95\textwidth]{../figures/fig_paths_500.png}
+\caption{Frozen benchmark scenarios and the best paths found by SPSO and Sphere-ICPO. Threats are red dashed circles; all maps share the same start and end points.}
 \label{fig:maps}
 \end{figure}
 
@@ -171,100 +170,100 @@ All algorithms are implemented within the same spherical vector encoding and cos
 
 To isolate the contribution of each innovation, four variants are constructed by systematically removing components from the full Sphere-ICPO: \textit{noSOS} replaces SOS mutualism with CPO's original visual and acoustic strategies (while retaining adaptive exploration ratio and retreat), \textit{noAdapt} replaces the adaptive exploration ratio with a fixed 50\% probability (while retaining SOS and retreat), and \textit{noRetreat} removes the stagnation-triggered retreat (while retaining SOS and adaptive exploration). The baseline CPO retains the original four defense strategies without any innovations.
 
-Table~\ref{tab:ablation} presents the ablation results on Map~1. The full Sphere-ICPO achieves a mean cost of 5159.75, representing a 17.6\% improvement over the baseline CPO (6262.77). Removing SOS mutualism causes the largest degradation (+26.7\%), confirming it as the most critical innovation. Removing the adaptive exploration ratio degrades performance by 15.1\%, while removing the retreat mechanism causes a modest 1.7\% increase in mean cost. These results demonstrate that each innovation contributes independently, with SOS mutualism providing the dominant benefit and the adaptive exploration ratio and retreat mechanism offering complementary improvements.
+Table~\ref{tab:ablation} reports the ablation study on Map~3. Replacing SOS with the original CPO exploration operators produces the worst result (5646.27), even worse than the CPO baseline (5554.94), while all SOS-containing variants improve on CPO. This identifies SOS mutualism as the robust core change. However, the full method (5407.07) does not outperform \,\textit{noAdapt} (5380.48) or \,\textit{noRetreat} (5350.48) in mean cost. Consequently, this experiment does not support the stronger claim that the adaptive schedule and retreat independently improve mean performance under every setting; their role is better interpreted as conditional search-control mechanisms.
 
 \begin{table}[h]
 \centering
-\caption{Ablation study results on Map~1 (20 independent runs, 500 particles).}
+\caption{Ablation study on Map~3 (30 independent runs, 500 particles).}
 \label{tab:ablation}
 \begin{tabular}{lcccc}
 \hline
 \textbf{Variant} & \textbf{SOS} & \textbf{Adapt.~$a$} & \textbf{Retreat} & \textbf{Mean $\pm$ Std} \\
 \hline
-CPO (baseline) & -- & -- & -- & 6262.77 $\pm$ 109.06 \\
-noSOS & -- & $\checkmark$ & $\checkmark$ & 6539.98 $\pm$ 268.78 \\
-noAdapt & $\checkmark$ & -- & $\checkmark$ & 5938.88 $\pm$ 777.56 \\
-noRetreat & $\checkmark$ & $\checkmark$ & -- & 5249.58 $\pm$ 349.86 \\
-\textbf{Sphere-ICPO} & $\checkmark$ & $\checkmark$ & $\checkmark$ & \textbf{5159.75 $\pm$ 396.07} \\
+CPO (baseline) & -- & -- & -- & 5554.94 $\pm$ 108.65 \\
+noSOS & -- & $\checkmark$ & $\checkmark$ & 5646.27 $\pm$ 68.91 \\
+noAdapt & $\checkmark$ & -- & $\checkmark$ & 5380.48 $\pm$ 204.31 \\
+\textbf{noRetreat} & $\checkmark$ & $\checkmark$ & -- & \textbf{5350.48 $\pm$ 165.71} \\
+Sphere-ICPO & $\checkmark$ & $\checkmark$ & $\checkmark$ & 5407.07 $\pm$ 212.76 \\
 \hline
 \end{tabular}
 \end{table}
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.78\textwidth]{../figures/fig_ablation.png}
-\caption{Ablation study results visualized: mean cost with standard deviation error bars for each variant on Map~1.}
+\includegraphics[width=0.78\textwidth]{../figures/fig_ablation_500.png}
+\caption{Map~3 ablation means with standard-deviation error bars.}
 \label{fig:ablation}
 \end{figure}
 
 \subsection{Multi-Map Comparison}
 
-Table~\ref{tab:comparison} presents the comprehensive comparison of Sphere-ICPO against SPSO, GWO, CPO, and WOA across all four scenarios. Sphere-ICPO achieves the best mean cost on three of four maps (Maps~2, 3, and 4), and ranks second on Map~1 behind SPSO. Notably, on Map~3, Sphere-ICPO achieves both the lowest mean cost (4948.96) and the lowest standard deviation (49.77), indicating exceptional optimization stability in sparse-threat environments. On the most challenging Map~4 (seven dense threats), Sphere-ICPO outperforms SPSO by 31.20 units (0.63\%) while exhibiting competitive stability (Std 44.15 vs.~SPSO's 53.70).
+Table~\ref{tab:comparison} compares Sphere-ICPO with SPSO, GWO, CPO, and WOA. Sphere-ICPO achieves the lowest mean cost on Maps~1, 2, and 4. GWO is best on Map~3, where Sphere-ICPO ranks third behind GWO and SPSO. Across all four scenarios, Sphere-ICPO consistently improves on its direct CPO baseline; its advantage over the strongest non-CPO baselines is scenario dependent.
 
-Across all scenarios, Sphere-ICPO consistently and substantially outperforms the baseline CPO, GWO, and WOA. The improvement over CPO ranges from 3.4\% (Map~3) to 19.1\% (Map~4), confirming that the three innovations effectively address CPO's structural limitations in the spherical vector space.
+The lowest overall average rank belongs to Sphere-ICPO (1.50), followed by GWO (2.00), SPSO (2.50), CPO (4.00), and WOA (5.00). The narrow differences among Sphere-ICPO, SPSO, and GWO on some maps motivate the corrected pairwise analysis below.
 
 \begin{table}[h]
 \centering
-\caption{Multi-map comparison (20 independent runs per algorithm per map). Best mean values in \textbf{bold}. Particle counts: SPSO 500, GWO 150, CPO 150, WOA 150, Sphere-ICPO 500.}
+\caption{Multi-map comparison (30 runs; 500 particles and 200 iterations for every algorithm). Best means are bold.}
 \label{tab:comparison}
-\begin{tabular}{lccccc}
+\resizebox{\textwidth}{!}{\begin{tabular}{lccccc}
 \hline
 \textbf{Map} & \textbf{SPSO} & \textbf{GWO} & \textbf{CPO} & \textbf{WOA} & \textbf{Sphere-ICPO} \\
 \hline
-1: 6 threats & \textbf{4884.78 $\pm$ 272.00} & 4941.93 $\pm$ 325.01 & 6257.57 $\pm$ 158.55 & 8056.20 $\pm$ 1168.92 & 5009.93 $\pm$ 339.73 \\
-2: 5 clustered & 5094.20 $\pm$ 12.11 & 5108.72 $\pm$ 10.24 & 5258.50 $\pm$ 41.30 & 6510.96 $\pm$ 945.49 & \textbf{5085.38 $\pm$ 6.00} \\
-3: 3 scattered & 4958.48 $\pm$ 45.53 & 4991.97 $\pm$ 34.63 & 5080.37 $\pm$ 59.41 & 6360.87 $\pm$ 637.28 & \textbf{4948.96 $\pm$ 49.77} \\
-4: 7 dense & 4919.18 $\pm$ 53.70 & 4962.92 $\pm$ 70.55 & 6041.61 $\pm$ 241.32 & 6835.83 $\pm$ 982.41 & \textbf{4887.98 $\pm$ 44.15} \\
+1: 4 sparse & 4705.02 $\pm$ 89.31 & 4691.94 $\pm$ 3.22 & 4775.28 $\pm$ 45.71 & 5610.32 $\pm$ 611.86 & \textbf{4686.81 $\pm$ 3.17} \\
+2: 5 clustered & 5060.89 $\pm$ 11.52 & 5071.25 $\pm$ 10.55 & 5169.57 $\pm$ 29.37 & 5971.80 $\pm$ 501.84 & \textbf{5054.58 $\pm$ 4.66} \\
+3: 6 staggered & 5260.68 $\pm$ 232.08 & \textbf{5235.05 $\pm$ 180.56} & 5551.59 $\pm$ 72.06 & 6794.28 $\pm$ 465.61 & 5353.75 $\pm$ 212.70 \\
+4: 7 dense & 4909.26 $\pm$ 72.12 & 4900.53 $\pm$ 77.82 & 5073.04 $\pm$ 30.94 & 5999.41 $\pm$ 507.89 & \textbf{4897.10 $\pm$ 76.94} \\
 \hline
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.92\textwidth]{../figures/fig_path_comparison.png}
-\caption{Top-down view of the best paths generated by SPSO and Sphere-ICPO on Map~1 (left) and Map~4 (right). Threats are shown as red dashed circles; the start point is marked by a green square and the end point by a red triangle.}
+\includegraphics[width=0.92\textwidth]{../figures/fig_comparison_500.png}
+\caption{Mean costs with standard-deviation error bars across the frozen benchmark.}
 \label{fig:paths}
 \end{figure}
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.55\textwidth]{../figures/fig_convergence.png}
-\caption{Convergence curves of Sphere-ICPO versus baseline algorithms on Map~1 (left) and Map~4 (right), averaged over 20 independent runs.}
+\includegraphics[width=0.92\textwidth]{../figures/fig_convergence_500.png}
+\caption{Mean best-so-far convergence curves over 30 independent runs.}
 \label{fig:convergence}
 \end{figure}
 
 \subsection{Statistical Validation}
 
-Table~\ref{tab:wilcoxon} reports the $p$-values from Wilcoxon rank-sum tests comparing Sphere-ICPO against each baseline algorithm on every map. Sphere-ICPO significantly outperforms CPO and WOA on all four maps ($p < 0.001$). Compared to SPSO, Sphere-ICPO achieves statistically significant superiority on Maps~3 and~4 ($p < 0.05$), while the differences on Maps~1 and~2 are not statistically significant. Compared to GWO, Sphere-ICPO is significantly better on Maps~3 and~4 ($p < 0.01$).
+Table~\ref{tab:wilcoxon} reports Holm-corrected $p$-values from two-sided Wilcoxon rank-sum tests. Sphere-ICPO significantly outperforms CPO and WOA on every map. It significantly outperforms all four baselines on Map~2. On Map~1 its advantage over SPSO is not significant, although the gains over GWO, CPO, and WOA are significant. On Map~3 it is significantly worse than SPSO and GWO but better than CPO and WOA. On Map~4 the small mean advantages over SPSO and GWO are not significant.
 
 \begin{table}[h]
 \centering
-\caption{Wilcoxon rank-sum test: Sphere-ICPO vs.~each baseline. $^*p < 0.05$, $^{**}p < 0.01$.}
+\caption{Holm-corrected Wilcoxon $p$-values for Sphere-ICPO versus each baseline.}
 \label{tab:wilcoxon}
 \begin{tabular}{lcccc}
 \hline
 \textbf{Map} & \textbf{vs.~SPSO} & \textbf{vs.~GWO} & \textbf{vs.~CPO} & \textbf{vs.~WOA} \\
 \hline
-1: 6 threats & 0.9676 & 0.4570 & 0.0000$^{**}$ & 0.0000$^{**}$ \\
-2: 5 clustered & 0.5609 & 0.7972 & 0.0000$^{**}$ & 0.0000$^{**}$ \\
-3: 3 scattered & 0.0084$^{**}$ & 0.0001$^{**}$ & 0.0000$^{**}$ & 0.0000$^{**}$ \\
-4: 7 dense & 0.0207$^{*}$ & 0.0001$^{**}$ & 0.0000$^{**}$ & 0.0000$^{**}$ \\
+1: 4 sparse & 0.1297 & $7.61\times10^{-7}$ & $1.21\times10^{-10}$ & $1.21\times10^{-10}$ \\
+2: 5 clustered & 0.00334 & $6.39\times10^{-9}$ & $1.21\times10^{-10}$ & $1.21\times10^{-10}$ \\
+3: 6 staggered & 0.0232$^{-}$ & 0.0206$^{-}$ & 0.00411 & $1.21\times10^{-10}$ \\
+4: 7 dense & 0.9285 & 0.9285 & $5.33\times10^{-10}$ & $1.21\times10^{-10}$ \\
 \hline
 \end{tabular}
 \end{table}
 
-The Friedman test yields an overall ranking of Sphere-ICPO (2.00) $>$ SPSO (1.75) $>$ GWO (2.25) $>$ CPO (4.00) $>$ WOA (5.00), with $p = 0.0113$, confirming a statistically significant overall difference among algorithms. Sphere-ICPO achieves the best rank, demonstrating its consistent superiority across diverse environmental conditions.
+The superscript $^{-}$ marks comparisons in which Sphere-ICPO has the higher (worse) mean. The Friedman test yields average ranks of Sphere-ICPO (1.50), GWO (2.00), SPSO (2.50), CPO (4.00), and WOA (5.00), where lower is better. The overall difference is significant ($p=0.00869$). Thus Sphere-ICPO achieves the best aggregate rank, while the map-level tests show that its advantage is not universal.
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=0.95\textwidth]{../figures/fig_boxplot.png}
-\caption{Boxplot comparison of cost distributions across all four maps and five algorithms (20 independent runs each). Sphere-ICPO shows consistently lower median costs and tighter interquartile ranges compared to GWO, CPO, and WOA.}
+\includegraphics[width=0.95\textwidth]{../figures/fig_boxplot_500.png}
+\caption{Cost distributions across four maps and five algorithms (30 runs each).}
 \label{fig:boxplot}
 \end{figure}
 
 \section{Conclusion}
 
-This paper proposed Sphere-ICPO, a spherical vector-based improved Crested Porcupine Optimizer for UAV 3D path planning. By integrating SOS mutualism, an adaptive exploration ratio, and stagnation-triggered periodic retreat, Sphere-ICPO addresses the three structural limitations of CPO in spherical vector space: ineffective exploration through random differentiation, rigid exploration--exploitation switching, and the absence of a local-optimum escape mechanism. Comprehensive experiments on four benchmark scenarios constructed from real LiDAR DEM data yield the following findings: (1) Ablation studies confirm that each innovation contributes independently, with SOS mutualism providing the largest improvement (26.7\%); (2) At equivalent population sizes, Sphere-ICPO outperforms SPSO on three of four maps, with statistically significant advantages on Maps~3 and~4 (Wilcoxon $p < 0.05$); (3) The Friedman test ranks Sphere-ICPO first among five algorithms ($p = 0.0113$). Future work may explore extending Sphere-ICPO to multi-UAV collaborative scenarios and integrating deep reinforcement learning for fully adaptive parameter control.
+This paper proposed Sphere-ICPO, a spherical vector-based improved Crested Porcupine Optimizer for UAV 3D path planning. In a frozen four-map benchmark with equal population and iteration budgets, Sphere-ICPO achieves the lowest mean cost on three maps and the best overall average rank (1.50); the Friedman test gives $p=0.00869$. Holm-corrected tests confirm strong improvements over the direct CPO baseline and WOA on every map, while comparisons with SPSO and GWO remain scenario dependent. The ablation study identifies SOS mutualism as the robust core improvement, but does not show independent mean-cost benefits from the adaptive schedule and retreat on Map~3. This limitation should motivate future work on conditional activation or parameter adaptation rather than stronger universal claims. Extensions to multi-UAV planning and evaluation under explicit function-evaluation budgets are also promising directions.
 
 \begin{thebibliography}{99}
 

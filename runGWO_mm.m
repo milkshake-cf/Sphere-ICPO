@@ -1,4 +1,6 @@
-function [Alpha, BestCost] = runGWO_mm(model, nPop, MaxIt)
+function [Alpha, BestCost, RunInfo] = runGWO_mm(model, nPop, MaxIt)
+    global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
+    initialRng = rng; runTimer = tic;
     CostFunction = @(x) MyCost(x, model);
     nVar = model.n; VarSize = [1 nVar];
 
@@ -20,13 +22,7 @@ function [Alpha, BestCost] = runGWO_mm(model, nPop, MaxIt)
     isInit = false;
     while ~isInit
         for i = 1:nPop
-            pack(i).Position = CreateRandomSolution(VarSize, VarMin, VarMax);
-            cartPos = SphericalToCart(pack(i).Position, model);
-            if any(isnan(cartPos.x)) || any(isnan(cartPos.y)) || any(isnan(cartPos.z))
-                pack(i).Cost = inf;
-            else
-                try, pack(i).Cost = CostFunction(cartPos); catch, pack(i).Cost = inf; end
-            end
+            [pack(i).Position,pack(i).Cost] = CreateFiniteRandomSolution(VarSize,VarMin,VarMax,model);
             if pack(i).Cost < Alpha.Cost
                 Delta = Beta; Beta = Alpha; Alpha.Position = pack(i).Position; Alpha.Cost = pack(i).Cost; isInit = true;
             elseif pack(i).Cost < Beta.Cost
@@ -71,6 +67,7 @@ function [Alpha, BestCost] = runGWO_mm(model, nPop, MaxIt)
             end
         end
     end
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), Alpha, BestCost, model);
 end
 
 function [X1, X2, X3] = GWO_update(X, A_Pos, B_Pos, D_Pos, a, VarSize)

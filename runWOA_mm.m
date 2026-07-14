@@ -1,4 +1,6 @@
-function [GlobalBest, BestCost] = runWOA_mm(model, nPop, MaxIt)
+function [GlobalBest, BestCost, RunInfo] = runWOA_mm(model, nPop, MaxIt)
+    global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
+    initialRng = rng; runTimer = tic;
     CostFunction = @(x) MyCost(x, model);
     nVar = model.n; VarSize = [1 nVar];
 
@@ -19,13 +21,7 @@ function [GlobalBest, BestCost] = runWOA_mm(model, nPop, MaxIt)
     isInit = false;
     while ~isInit
         for i = 1:nPop
-            pop(i).Position = CreateRandomSolution(VarSize, VarMin, VarMax);
-            cartPos = SphericalToCart(pop(i).Position, model);
-            if any(isnan(cartPos.x)) || any(isnan(cartPos.y)) || any(isnan(cartPos.z))
-                pop(i).Cost = inf;
-            else
-                try, pop(i).Cost = CostFunction(cartPos); catch, pop(i).Cost = inf; end
-            end
+            [pop(i).Position,pop(i).Cost] = CreateFiniteRandomSolution(VarSize,VarMin,VarMax,model);
             if pop(i).Cost < GlobalBest.Cost
                 GlobalBest.Position = pop(i).Position; GlobalBest.Cost = pop(i).Cost; isInit = true;
             end
@@ -84,4 +80,5 @@ function [GlobalBest, BestCost] = runWOA_mm(model, nPop, MaxIt)
             end
         end
     end
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model);
 end
