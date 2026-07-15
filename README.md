@@ -19,12 +19,12 @@ All five algorithms use 500 particles, 200 iterations, and 30 independent runs.
 
 | Map | SPSO | GWO | CPO | WOA | **Sphere-ICPO** |
 |:--|--:|--:|--:|--:|--:|
-| Map1 (4 threats) | 4705.02 | 4691.94 | 4775.28 | 5610.32 | **4686.81** |
-| Map2 (5 threats) | 5060.89 | 5071.25 | 5169.57 | 5971.80 | **5054.58** |
-| Map3 (6 threats) | 5260.68 | **5235.05** | 5551.59 | 6794.28 | 5353.75 |
-| Map4 (7 threats) | 4909.26 | 4900.53 | 5073.04 | 5999.41 | **4897.10** |
+| Map1 (4 threats) | 4705.02 | **4691.94** | 4775.28 | 5610.32 | 4692.80 |
+| Map2 (5 threats) | 5060.89 | 5071.25 | 5169.57 | 5971.80 | **5058.35** |
+| Map3 (6 threats) | 5260.68 | **5235.05** | 5551.59 | 6794.28 | 5358.42 |
+| Map4 (7 threats) | 4909.26 | 4900.53 | 5073.04 | 5999.41 | **4896.46** |
 
-Sphere-ICPO ranks first overall (average rank 1.50), wins 3 of 4 maps by mean cost, and the Friedman test detects an overall difference ($p=0.00869$). Pairwise significance is reported with Holm correction in the result bundle.
+After correcting per-particle retreat rollback, Sphere-ICPO and GWO tie for the best average rank (1.75) and each wins 2 of 4 maps by mean cost. The Friedman test detects an overall difference ($p=0.00948$). Four-map ablation identifies SOS as the final-accuracy core, the adaptive schedule as an anytime-efficiency contribution, and retreat as conditional.
 
 ## Quick Start
 

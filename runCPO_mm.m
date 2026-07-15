@@ -3,6 +3,7 @@ function [GlobalBest, BestCost, RunInfo] = runCPO_mm(model, nPop, MaxIt)
 
     global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
     initialRng = rng; runTimer = tic;
+    metrics = InitRunMetrics();
 
     CostFunction = @(x) MyCost(x, model);
     nVar = model.n; VarSize = [1 nVar];
@@ -41,6 +42,7 @@ function [GlobalBest, BestCost, RunInfo] = runCPO_mm(model, nPop, MaxIt)
         for i = 1:nPop
             U1 = rand(VarSize) > rand();
             if rand() < rand()  % EXPLORATION
+                metrics.explorationCount = metrics.explorationCount + 1;
                 if rand() < rand()  % Strategy 1
                     k = randi(nPop);
                     y_r = (pop(i).Position.r + pop(k).Position.r) / 2;
@@ -59,6 +61,7 @@ function [GlobalBest, BestCost, RunInfo] = runCPO_mm(model, nPop, MaxIt)
                     pop(i).Position.phi = U1.*pop(i).Position.phi + (1-U1).*(y_phi + rand()*(pop(m).Position.phi - pop(k).Position.phi));
                 end
             else  % EXPLOITATION
+                metrics.exploitationCount = metrics.exploitationCount + 1;
                 Yt = 2 * rand() * (1 - t/MaxIt)^(t/MaxIt);
                 U2 = (rand(VarSize) < 0.5) * 2 - 1; S_base = rand() * U2;
                 allCosts = [pop.Cost]; finiteCosts = allCosts(isfinite(allCosts));
@@ -104,5 +107,5 @@ function [GlobalBest, BestCost, RunInfo] = runCPO_mm(model, nPop, MaxIt)
             end
         end
     end
-    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model);
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model, metrics);
 end

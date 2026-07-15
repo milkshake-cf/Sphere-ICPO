@@ -1,7 +1,7 @@
 # Large binary and data files
 *.tif
 *.mat
-results/
+/results/
 tmp/
 文献/
 

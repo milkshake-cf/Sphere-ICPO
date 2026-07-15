@@ -3,6 +3,7 @@
 function [GlobalBest, BestCost, RunInfo] = runICPO_noRetreat_mm(model, nPop, MaxIt)
     global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
     initialRng = rng; runTimer = tic;
+    metrics = InitRunMetrics();
 
     CostFunction = @(x) MyCost(x, model);
     nVar = model.n; VarSize = [1 nVar];
@@ -44,6 +45,7 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_noRetreat_mm(model, nPop, Max
             %% ===== SOS MUTUALISM: Replaces CPO's first two defense strategies =====
             a_adapt = 2*(0.7*(1-t/MaxIt)^0.5 + 0.3); expl_ratio = a_adapt/2;
             if rand() < expl_ratio  % EXPLORATION via SOS mutualism
+                metrics.explorationCount = metrics.explorationCount + 1;
                 % ---- Mutually Beneficial Stage ----
                 x_rand_idx = randi(nPop);
                 % RMV = x_i + rand * (x_rand - x_i)
@@ -59,6 +61,7 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_noRetreat_mm(model, nPop, Max
                 pop(i).Position.phi = pop(i).Position.phi + rand(VarSize) .* (GlobalBest.Position.phi - RMV_phi);
 
             else  % EXPLOITATION via original CPO mechanisms
+                metrics.exploitationCount = metrics.exploitationCount + 1;
                 U1 = rand(VarSize) > rand();
                 Yt = 2 * rand() * (1 - t/MaxIt)^(t/MaxIt);
                 U2 = (rand(VarSize) < 0.5) * 2 - 1;
@@ -114,5 +117,5 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_noRetreat_mm(model, nPop, Max
             fprintf('  Iter %d: BestCost = %.2f\n', t, BestCost(t));
         end
     end
-    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model);
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model, metrics);
 end

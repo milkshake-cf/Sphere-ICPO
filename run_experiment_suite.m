@@ -72,6 +72,7 @@ rec.completed=true; rec.seed=seed; rec.cost=best.Cost;
 rec.elapsed=info.elapsed; rec.functionEvaluations=info.functionEvaluations;
 rec.bestPosition=best.Position; rec.bestCartesian=info.bestCartesian;
 rec.convergence=curve(:); rec.finishedAt=datestr(now,30);
+rec.metrics=info.metrics;
 end
 
 function out=serializable_config(cfg)

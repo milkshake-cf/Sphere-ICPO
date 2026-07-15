@@ -4,6 +4,7 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_SOSv4_mm(model, nPop, MaxIt)
 
     global SPHERE_ICPO_EVAL_COUNT; SPHERE_ICPO_EVAL_COUNT = 0;
     initialRng = rng; runTimer = tic;
+    metrics = InitRunMetrics();
 
     CostFunction = @(x) MyCost(x, model);
     nVar = model.n; VarSize = [1 nVar];
@@ -45,6 +46,7 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_SOSv4_mm(model, nPop, MaxIt)
             %% ===== SOS MUTUALISM: Replaces CPO's first two defense strategies =====
             a_adapt = 2*(0.7*(1-t/MaxIt)^0.5 + 0.3); expl_ratio = a_adapt/2;
             if rand() < expl_ratio  % EXPLORATION via SOS mutualism
+                metrics.explorationCount = metrics.explorationCount + 1;
                 % ---- Mutually Beneficial Stage ----
                 x_rand_idx = randi(nPop);
                 % RMV = x_i + rand * (x_rand - x_i)
@@ -60,6 +62,7 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_SOSv4_mm(model, nPop, MaxIt)
                 pop(i).Position.phi = pop(i).Position.phi + rand(VarSize) .* (GlobalBest.Position.phi - RMV_phi);
 
             else  % EXPLOITATION via original CPO mechanisms
+                metrics.exploitationCount = metrics.exploitationCount + 1;
                 U1 = rand(VarSize) > rand();
                 Yt = 2 * rand() * (1 - t/MaxIt)^(t/MaxIt);
                 U2 = (rand(VarSize) < 0.5) * 2 - 1;
@@ -111,9 +114,12 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_SOSv4_mm(model, nPop, MaxIt)
 
         %% Periodic Retreat (from ICPO SciRep) — every 10% of MaxIt
         if stagnation_counter >= 5
+            metrics.retreatTriggers = metrics.retreatTriggers + 1;
+            bestBeforeRetreat = GlobalBest.Cost;
             rg = 0.9 - log(t+1) * (0.9 - 0.1) / log(MaxIt+1);
+            retreat_positions = cell(nPop,1);
             for i = 1:nPop
-                retreatPosition = pop(i).Position;
+                retreat_positions{i} = pop(i).Position;
                 r = rand() * rg;
                 L_r = GlobalBest.Position.r - pop(i).Position.r;
                 Lp_r = L_r .* rand(VarSize);
@@ -138,21 +144,26 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_SOSv4_mm(model, nPop, MaxIt)
                 cartPos = SphericalToCart(pop(i).Position, model);
                 if ~any(isnan(cartPos.x)) && ~any(isinf(cartPos.x))
                     try
+                        metrics.retreatEvaluations = metrics.retreatEvaluations + 1;
                         newCost = CostFunction(cartPos);
                         if newCost < pop(i).Cost
+                            metrics.retreatAccepted = metrics.retreatAccepted + 1;
                             pop(i).Cost = newCost; prev_positions{i} = pop(i).Position;
                             if newCost < GlobalBest.Cost
                                 GlobalBest.Position = pop(i).Position; GlobalBest.Cost = newCost;
                             end
                         else
-                            pop(i).Position = retreatPosition;
+                            pop(i).Position = retreat_positions{i};
                         end
                     catch
-                        pop(i).Position = retreatPosition;
+                        pop(i).Position = retreat_positions{i};
                     end
                 else
-                    pop(i).Position = retreatPosition;
+                    pop(i).Position = retreat_positions{i};
                 end
+            end
+            if GlobalBest.Cost < bestBeforeRetreat
+                metrics.retreatBestImprovements = metrics.retreatBestImprovements + 1;
             end
             stagnation_counter = 0;
         end
@@ -161,5 +172,5 @@ function [GlobalBest, BestCost, RunInfo] = runICPO_SOSv4_mm(model, nPop, MaxIt)
             fprintf('  Iter %d: BestCost = %.2f\n', t, BestCost(t));
         end
     end
-    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model);
+    RunInfo = BuildRunInfo(initialRng, toc(runTimer), GlobalBest, BestCost, model, metrics);
 end
